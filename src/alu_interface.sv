@@ -17,12 +17,12 @@ output OPA, OPB, CIN, CMD, INP_VALID, CE, MODE;
 endclocking
 
 clocking ip_mon_cb@(posedge CLK);
-default input #0 output #1;
+default input #1 output #0;
 input OPA, OPB, CIN, CMD, INP_VALID, CE, MODE; 
 endclocking
 
 clocking op_mon_cb@(posedge CLK);
-default input #0 output #1;
+default input #1 output #0;
 input RES, COUT, OFLOW, G, L, E, ERR;
 endclocking
 

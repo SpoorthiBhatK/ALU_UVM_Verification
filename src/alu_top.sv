@@ -37,6 +37,12 @@ initial begin
 end
 
 initial begin
+	RST = 1;
+    	#20;
+	RST = 0;
+end
+
+initial begin
 	uvm_config_db #(virtual alu_interface)::set(null, "*", "alu_interface", duv_inf);
 	$dumpfile("waves.fsdb");
 	$dumpvars;

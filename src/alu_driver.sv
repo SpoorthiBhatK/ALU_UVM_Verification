@@ -33,8 +33,6 @@ task run_phase(uvm_phase phase);
 endtask
 task drive(alu_seq_item data2duv);
 	begin
-
-		`uvm_info("INPUT_DRIVER", $sformatf("Input Driver\n%s", data2duv.sprint()), UVM_NONE)
 		@(vif_drv.drv_cb);
 		vif_drv.drv_cb.OPA <= data2duv.OPA;
 		vif_drv.drv_cb.OPB <= data2duv.OPB;
@@ -43,6 +41,8 @@ task drive(alu_seq_item data2duv);
 		vif_drv.drv_cb.MODE <= data2duv.MODE;
 		vif_drv.drv_cb.INP_VALID <= data2duv.INP_VALID;
 		vif_drv.drv_cb.CMD <= data2duv.CMD;
+		
+		`uvm_info("INPUT_DRIVER", $sformatf("INP_VALID: %d, OPA: %d,	OPB: %d, CIN: %d, CE: %d, MODE: %d, CMD: %d", data2duv.INP_VALID, data2duv.OPA, data2duv.OPB, data2duv.CIN, data2duv.CE, data2duv.MODE, data2duv.CMD), UVM_NONE)
 	end
 endtask
 endclass		
