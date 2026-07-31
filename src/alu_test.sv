@@ -51,7 +51,6 @@ alu_sequence s1;
 	phase.raise_objection(this);
 	s1=alu_sequence::type_id::create("s1");
 	s1.start(env.inp_agt.sqr);
-	#50;
 	phase.drop_objection(this);
 
 

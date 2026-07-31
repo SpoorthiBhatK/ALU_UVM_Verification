@@ -33,13 +33,14 @@ task run_phase(uvm_phase phase);
 	forever begin
 		drv2mon = alu_seq_item::type_id::create("drv2mon");
 		collect_ip_monitor();
-		`uvm_info("INPU MONITOR", $sformatf("Input Monitor\n%s", drv2mon.sprint()), UVM_NONE)
+		`uvm_info("INPUT MONITOR", $sformatf("Input Monitor\n%s", drv2mon.sprint()), UVM_NONE)
 	end
 endtask
 virtual task collect_ip_monitor();
 	begin
-		repeat(7);
+		//repeat(7)
 		@(ip_m_vif.ip_mon_cb);
+		begin
 		
 		drv2mon.CE = ip_m_vif.ip_mon_cb.CE;
 		drv2mon.OPA = ip_m_vif.ip_mon_cb.OPA;
@@ -53,6 +54,7 @@ virtual task collect_ip_monitor();
 			drv2mon.CIN = ip_m_vif.ip_mon_cb.CIN;
 		end
 		inp_m_port.write(drv2mon);
+		end
 	end
 endtask
 

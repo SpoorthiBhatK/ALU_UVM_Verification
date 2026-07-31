@@ -40,7 +40,7 @@ virtual task collect_data();
 begin
 	//repeat(6)
 	@(vif.op_mon_cb);
-	//begin
+	begin
 		rd_data.RES = vif.op_mon_cb.RES;
 		rd_data.ERR = vif.op_mon_cb.ERR;
 		rd_data.COUT = vif.op_mon_cb.COUT;
@@ -51,7 +51,7 @@ begin
 
 		op_m_port.write(rd_data);
 
-//	end
+	end
 end
 endtask
 
