@@ -14,6 +14,12 @@ constraint m_v{
 	MODE -> CMD inside {[0:10]};
 	!MODE -> CMD inside {[0:13]};
 }
+constraint cmd_dst{ 
+	if (MODE)
+	        CMD dist { [0:10] := 1 };
+	else
+        	CMD dist { [0:13] := 1 };
+}
 
 `uvm_object_utils_begin(alu_seq_item)
 `uvm_field_int(OPA, UVM_ALL_ON | UVM_DEC)

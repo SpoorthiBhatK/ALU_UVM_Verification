@@ -13,6 +13,7 @@ package alu_package;
 	`include "alu_op_monitor.sv"
 	`include "alu_op_agent.sv"
 	`include "alu_scoreboard.sv"
+	`include "alu_subscriber.sv"
 	`include "alu_env.sv"
 
 	`include "alu_test.sv"
