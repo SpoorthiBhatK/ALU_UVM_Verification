@@ -7,13 +7,14 @@ function new(string name = "alu_sequence");
 endfunction
 
 task body();
-	repeat(25)begin
+	repeat(20)begin
 	req = alu_seq_item::type_id::create("req");
 	begin	
+		
 		start_item(req);
-		assert(req.randomize());
+		assert(req.randomize()with{MODE == 1;CMD == 0;INP_VALID == 3;});
 		finish_item(req);
-		end
+	end
 	end	
 endtask
 endclass

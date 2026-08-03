@@ -1,504 +1,239 @@
-`timescale 1ns / 1ps
-`default_nettype none
+module alu #(parameter DW = 8, CW = 4)(INP_VALID,OPA,OPB,CIN,CLK,RST,CMD,CE,MODE,COUT,OFLOW,RES,G,E,L,ERR);
+ 
+  input [DW-1:0] OPA,OPB;
+  input CLK,RST,CE,MODE,CIN;
+  input [CW-1:0] CMD;
+  input [1:0] INP_VALID;
+  output reg [2*DW-1:0] RES = 16'b0;
+  output reg COUT = 1'b0;
+  output reg OFLOW = 1'b0;
+  output reg G = 1'b0;
+  output reg E = 1'b0;
+  output reg L = 1'b0;
+  output reg ERR = 1'b0;
 
-module alu #(parameter N = 8, C = 4)(
-
-    input  wire               CLK,
-    input  wire               RST,
-    input  wire               CE,
-    input  wire               MODE,
-    input  wire               CIN,
-
-    input  wire [1:0]         INP_VALID,
-    input  wire [N-1:0]       OPA,
-    input  wire [N-1:0]       OPB,
-    input  wire [C-1:0]       CMD,
-
-    output reg  [2*N-1:0]     RES,
-    output reg                COUT,
-    output reg                OFLOW,
-    output reg                G,
-    output reg                L,
-    output reg                E,
-    output reg                ERR
-);
-
-reg [1:0] COUNT1, COUNT2, COUNT3, COUNT4;
-
-reg [2*N-1:0] MUL1_TEMP, MUL2_TEMP;
-
-reg [2*N-1:0] RES_TEMP;
-
-reg COUT_TEMP;
-reg OFLOW_TEMP;
-reg G_TEMP;
-reg L_TEMP;
-reg E_TEMP;
-reg ERR_TEMP;
-
-always @(posedge CLK or posedge RST) begin
-
-    if(RST) begin
-
-        RES         <= 0;
-
-        RES_TEMP    <= 0;
-
-        COUT        <= 0;
-        OFLOW       <= 0;
-        G           <= 0;
-        L           <= 0;
-        E           <= 0;
-        ERR         <= 0;
-
-        COUT_TEMP   <= 0;
-        OFLOW_TEMP  <= 0;
-        G_TEMP      <= 0;
-        L_TEMP      <= 0;
-        E_TEMP      <= 0;
-        ERR_TEMP    <= 0;
-
-        COUNT1      <= 0;
-        COUNT2      <= 0;
-        COUNT3      <= 0;
-        COUNT4      <= 0;
-
-        MUL1_TEMP   <= 0;
-        MUL2_TEMP   <= 0;
-
+ 
+  reg [DW-1:0] OPA_1, OPB_1;
+  reg [DW-1:0] oprd1, oprd2;
+  reg [3:0] CMD_tmp;
+  reg [DW-1:0] AU_out_tmp1,AU_out_tmp2 ;
+  // Added timer and state tracking
+  reg [4:0] wait_counter;
+  reg oprd1_valid, oprd2_valid;
+  
+  always @ (posedge CLK) begin
+      if(RST) begin
+        oprd1<=0;
+        oprd2<=0;
+        CMD_tmp<=0;
+        wait_counter<=0;
+        oprd1_valid<=0;
+        oprd2_valid<=0;
+      end
+      else if (INP_VALID==2'b01)  begin    
+        oprd1<=OPA;
+        CMD_tmp<=CMD;
+        oprd1_valid<=1;
+        wait_counter<=0;
+        // Set error if second operand comes after 16 cycles
+        if(oprd2_valid && wait_counter >= 16) begin
+          ERR <= 1'b1;
+        end
+      end
+      else if (INP_VALID==2'b10)  begin    
+        oprd2<=OPB;
+        CMD_tmp<=CMD;
+        oprd2_valid<=1;
+        wait_counter<=0;
+        // Set error if second operand comes after 16 cycles
+        if(oprd1_valid && wait_counter >= 16) begin
+          ERR <= 1'b1;
+        end
+      end
+      else if (INP_VALID==2'b11)  begin    
+        oprd1<=OPA;
+        oprd2<=OPB;
+        CMD_tmp<=CMD;
+        oprd1_valid<=1;
+        oprd2_valid<=1;
+        wait_counter<=0;
+      end
+      else begin    
+        // Increment wait counter if only one operand is valid
+        if((oprd1_valid && !oprd2_valid) || (!oprd1_valid && oprd2_valid)) begin
+          if(wait_counter < 16) begin
+            wait_counter <= wait_counter + 1;
+          end else begin
+            // Keep operands but stop incrementing counter after 16 cycles
+            wait_counter <= 16;
+          end
+        end
+      end
     end
-
-    else if(CE) begin
-
-        RES_TEMP    <= 0;
-
-        COUT_TEMP   <= 0;
-        OFLOW_TEMP  <= 0;
-        G_TEMP      <= 0;
-        L_TEMP      <= 0;
-        E_TEMP      <= 0;
-        ERR_TEMP    <= 0;
-
-        if(MODE) begin
-
-            case(CMD)
-
-            // ADD
-            0: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    RES_TEMP   <= OPA + OPB;
-
-                    COUT_TEMP  <=
-                        ({1'b0, OPA} + {1'b0, OPB}) > {N{1'b1}};
-
-                end
-
-                else begin
-                    ERR_TEMP <= 1'b1;
-                end
+ 
+ 
+    always@(posedge CLK)
+      begin
+       if(CE)                   
+        begin
+         if(RST)                
+          begin
+            RES=16'b000000000;
+            COUT=1'b0;
+            OFLOW=1'b0;
+            G=1'b0;
+            E=1'b0;
+            L=1'b0;
+            ERR=1'b0;
+            AU_out_tmp1=0;
+            AU_out_tmp2=0;
+          end
+         else if(MODE && oprd1_valid && oprd2_valid)          
+         begin
+           RES=16'b000000000;
+           COUT=1'b0;
+           OFLOW=1'b0;
+           G=1'b0;
+           E=1'b0;
+           L=1'b0;
+           ERR=1'b0;
+          case(CMD_tmp)             
+    4'b0000:                   begin             
+              RES=oprd1+oprd2;
+              COUT=RES[8]?1:0;
             end
-
-            // SUB
-            1: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    RES_TEMP   <= OPA - OPB;
-
-                    OFLOW_TEMP <= (OPB > OPA);
-
-                end
-
-                else begin
-                    ERR_TEMP <= 1'b1;
-                end
+      4'b0001 :                begin
+             OFLOW=(oprd1<oprd2)?1:0;
+             RES=oprd1-oprd2;
             end
-
-            // ADDC
-            2: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    RES_TEMP <= OPA + OPB + CIN;
-
-                    COUT_TEMP <=
-                        ({1'b0, OPA} + {1'b0, OPB} + CIN)
-                        > {N{1'b1}};
-
-                end
-
-                else begin
-                    ERR_TEMP <= 1'b1;
-                end
+           4'h2:            
+            begin
+             RES=oprd1+oprd2+CIN;
+             COUT=RES[8]?1:0;
             end
-
-            // SUBC
-            3: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    RES_TEMP   <= OPA - OPB - CIN;
-
-                    OFLOW_TEMP <=
-                        ({1'b0, OPB} + CIN) > OPA;
-
-                end
-
-                else begin
-                    ERR_TEMP <= 1'b1;
-                end
-            end
-
-            // INC A
-            4: begin
-                if(INP_VALID == 2'b01 || INP_VALID == 2'b11)
-                    RES_TEMP <= (OPA + 1) & 8'hFF;
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // DEC A
-            5: begin
-                if(INP_VALID == 2'b01 || INP_VALID == 2'b11)
-                    RES_TEMP <= (OPA - 1) & 8'hFF;
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // INC B
-            6: begin
-               if(INP_VALID == 2'b10 || INP_VALID == 2'b11)
-                    RES_TEMP <= (OPB + 1) & 8'hFF;
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // DEC B
-            7: begin
-               if(INP_VALID == 2'b10 || INP_VALID == 2'b11)
-                    RES_TEMP <= (OPB - 1) & 8'hFF;
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // CMP
-            8: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    G_TEMP <= (OPA > OPB);
-                    L_TEMP <= (OPA < OPB);
-                    E_TEMP <= (OPA == OPB);
-
-                end
-
-                else begin
-                    ERR_TEMP <= 1'b1;
-                end
-            end
-
-            // MUL1
-            9: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    if(COUNT1 == 0) begin
-
-                        MUL1_TEMP <= (OPA + 1) * (OPB + 1);
-
-                        COUNT1 <= COUNT1 + 1;
-
-                    end
-
-                    else if(COUNT1 == 2'd2) begin
-
-                        RES <= MUL1_TEMP;
-
-                        MUL1_TEMP <= (OPA + 1) * (OPB + 1);
-
-                        COUNT1 <= 1;
-
-                    end
-
-                    else begin
-                        COUNT1 <= COUNT1 + 1;
-                    end
-		end
-
-                else begin
-
-		    RES_TEMP <= 0;
-		    ERR_TEMP <= 1'b1;
-
-		end
-		end
-
-            // MUL2
-            10: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    if(COUNT3 == 0) begin
-
-                        MUL2_TEMP <= (OPA << 1) * OPB;
-
-                        COUNT3 <= COUNT3 + 1;
-
-                    end
-
-                    else if(COUNT3 == 2'd2) begin
-
-                        RES <= MUL2_TEMP;
-
-                        MUL2_TEMP <= (OPA << 1) * OPB;
-
-                        COUNT3 <= 1;
-
-                    end
-
-                    else begin
-                        COUNT3 <= COUNT3 + 1;
-                    end
-                end
-
-                else begin
-
-		    RES_TEMP <= 0;
-		    ERR_TEMP <= 1'b1;
-
-		end
-		end
-
-            // SADD
-            11: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    RES_TEMP <= $signed(OPA) + $signed(OPB);
-
-                    OFLOW_TEMP <=
-                        (OPA[N-1] == OPB[N-1]) &&
-                        (($signed(OPA) + $signed(OPB))
-                        >> (N-1) != OPA[N-1]);
-
-                    G_TEMP <= ($signed(OPA) > $signed(OPB));
-                    L_TEMP <= ($signed(OPA) < $signed(OPB));
-                    E_TEMP <= ($signed(OPA) == $signed(OPB));
-
-                end
-
-                else begin
-                    ERR_TEMP <= 1'b1;
-                end
-            end
-
-            // SSUB
-            12: begin
-
-                if(INP_VALID == 2'b11) begin
-
-                    RES_TEMP <= $signed(OPA) - $signed(OPB);
-
-                    OFLOW_TEMP <=
-                        (OPA[N-1] != OPB[N-1]) &&
-                        (($signed(OPA) - $signed(OPB))
-                        >> (N-1) != OPA[N-1]);
-
-                    G_TEMP <= ($signed(OPA) > $signed(OPB));
-                    L_TEMP <= ($signed(OPA) < $signed(OPB));
-                    E_TEMP <= ($signed(OPA) == $signed(OPB));
-
-                end
-
-                else begin
-                    ERR_TEMP <= 1'b1;
-                end
-            end
-
-            default: begin
-                ERR_TEMP <= 1'b1;
-            end
-
-            endcase
-        end
-
-        else begin
-
-            case(CMD)
-
-            // AND
-            0: begin
-                if(INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (OPA & OPB)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // NAND
-            1: begin
-                if(INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (~(OPA & OPB) & 8'hFF)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // OR
-            2: begin
-                if(INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (OPA | OPB)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // NOR
-            3: begin
-                if(INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (~(OPA | OPB) & 8'hFF)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // XOR
-            4: begin
-                if(INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (OPA ^ OPB)};
-		else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // XNOR
-            5: begin
-                if(INP_VALID == 2'b11 )
-                    RES_TEMP <= {{N{1'b0}}, (~(OPA ^ OPB) & 8'hFF)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // NOT A
-            6: begin
-                if(INP_VALID == 2'b01 || INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (~OPA & 8'hFF)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // NOT B
-            7: begin
-               if(INP_VALID == 2'b10 || INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (~OPB & 8'hFF)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // SHR A
-            8: begin
-                if(INP_VALID == 2'b01 || INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (OPA >> 1)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // SHL A
-            9: begin
-               if(INP_VALID == 2'b01 || INP_VALID == 2'b11)
-                    RES_TEMP <=  {{N{1'b0}}, OPA << 1};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // SHR B
-            10: begin
-                if(INP_VALID == 2'b10 || INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (OPB >> 1)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // SHL B
-            11: begin
-                if(INP_VALID == 2'b10 || INP_VALID == 2'b11)
-                    RES_TEMP <= {{N{1'b0}}, (OPB << 1)};
-                else
-                    ERR_TEMP <= 1'b1;
-            end
-
-            // ROL
-            12: begin
-
-		    if(INP_VALID == 2'b11) begin
-
-			ERR_TEMP <= |OPB[N-1:N/2];
-
-			if(OPB[2:0] == 0)
-			    RES_TEMP <= OPA;
-
-			else
-			    RES_TEMP <= {{N{1'b0}},
-				         ((OPA << OPB[2:0]) |
-				          (OPA >> (N - OPB[2:0])))
-				        };
-		    end
-
-		    else begin
-			ERR_TEMP <= 1'b1;
-		    end
-		end
-
-            // ROR
-            13: begin
-
-		    if(INP_VALID == 2'b11) begin
-
-			ERR_TEMP <= |OPB[N-1:N/2];
-
-			if(OPB[2:0] == 0)
-			    RES_TEMP <= OPA;
-
-			else
-			    RES_TEMP <= {{N{1'b0}},
-				         ((OPA >> OPB[2:0]) |
-				          (OPA << (N - OPB[2:0])))
-				        };
-		    end
-
-		    else begin
-			ERR_TEMP <= 1'b1;
-		    end
-		end
-
-            default: begin
-                ERR_TEMP <= 1'b1;
-            end
-
-            endcase
-        end
-
-        if(MODE && (CMD == 4'd9 || CMD == 4'd10)) begin
-
-            ERR    <= ERR_TEMP;
-            OFLOW <= OFLOW_TEMP;
-            COUT  <= COUT_TEMP;
-            G     <= G_TEMP;
-            L     <= L_TEMP;
-            E     <= E_TEMP;
-
-        end
-
-        else begin
-
-            RES    <= RES_TEMP;
-
-            ERR    <= ERR_TEMP;
-            OFLOW <= OFLOW_TEMP;
-            COUT  <= COUT_TEMP;
-            G     <= G_TEMP;
-            L     <= L_TEMP;
-            E     <= E_TEMP;
-
-        end
+           4'b0011:             
+           begin
+            OFLOW=(oprd1<oprd2)?1:0;
+            RES=oprd1-oprd2-CIN;
+           end
+           4'b0100:RES=oprd1;    
+           4'b0101:RES=oprd1-1;    
+           4'b0110:RES=oprd2-1;    
+           4'b0111:RES=oprd2+1;    
+           4'b1000:              
+           begin
+            RES=16'b000000000;
+            if(oprd1==oprd2)
+             begin
+               E=1'b1;
+               G=1'bz;
+               L=1'bz;
+             end
+            else if(oprd1>oprd2)
+             begin
+               E=1'bz;
+               G=1'b1;
+               L=1'bz;
+             end
+            else 
+             begin
+               E=1'bz;
+               G=1'bz;
+               L=1'b1;
+             end
+           end
+	   4'b1001: begin   
+                    AU_out_tmp1 <= oprd1 + 1;
+                    AU_out_tmp2 <= oprd2 + 1;
+                    RES <=AU_out_tmp1 * AU_out_tmp2;
+                  end
+
+           4'b1010: begin   
+                    AU_out_tmp1 <= oprd1 << 1;
+                    AU_out_tmp2 <= oprd2;
+                    RES <=AU_out_tmp1 - AU_out_tmp2; 
+                  end
+ 
+           default:   
+            begin
+            RES=16'b000000000;
+            COUT=1'b0;
+            OFLOW=1'b0;
+            G=1'b0;
+            E=1'b0;
+            L=1'b0;
+            ERR=1'b0;
+           end
+          endcase
+         end
+        else if(!MODE && oprd1_valid && oprd2_valid)          
+        begin 
+           RES=16'b000000000;
+           COUT=1'b0;
+           OFLOW=1'b0;
+           G=1'b0;
+           E=1'b0;
+           L=1'b0;
+           ERR=1'b0;
+           case(CMD_tmp)    
+             4'b0000:RES={1'b0,oprd1&oprd2};     
+             4'b0001:RES={1'b0,~(oprd1&oprd2)};  
+             4'b0010:RES={1'b0,oprd1&&oprd2};     
+             4'b0011:RES={1'b0,~(oprd1|oprd2)};  
+             4'b0100:RES={1'b0,oprd1^oprd2};     
+             4'b0101:RES={1'b0,~(oprd1^oprd2)};  
+             4'b0110:RES={1'b0,~oprd1};        
+             4'b0111:RES={1'b0,~oprd2};        
+             4'b1000:RES={1'b0,oprd1};      
+             4'b1001:RES={1'b0,oprd1<<1};      
+             4'b1010:RES={1'b0,oprd2<<1};      
+             4'b1011:RES={1'b0,oprd2<<1};     
+             4'b1100:                        
+             begin
+               if(oprd2[0])
+                 OPA_1 = {oprd1[6:0], oprd1[7]};
+               else
+                 OPA_1 = oprd1;
+               if(oprd2[1])
+                 OPB_1 =  {OPA_1[5:0], OPA_1[7:6]}; 
+               else
+                 OPB_1= OPA_1;
+               if(oprd2[2])
+                 RES =  {OPB_1[3:0], OPB_1[7:4]} ;
+               else
+                 RES = OPB_1;
+               if(oprd2[4] | oprd2[5] | oprd2[6] | oprd2[7])
+                 ERR=1'b1;
+             end
+             4'b1101:                        
+             begin
+               if(oprd2[0])
+                 OPA_1 = {oprd1[0], oprd1[7:1]};
+               else
+                 OPA_1 = oprd1;
+               if(oprd2[1])
+                 OPB_1 =  {OPA_1[1:0], OPA_1[7:2]}; 
+               else
+                 OPB_1= OPA_1;
+               if(oprd2[2])
+                 RES =  {OPB_1[3:0], OPB_1[7:4]} ;
+               else
+                 RES = OPB_1;
+               if(oprd2[4] | oprd2[5] | oprd2[6] | oprd2[7])
+                 ERR=1'b0;
+             end
+             default:   
+               begin
+               RES=16'b000000000;
+               COUT=1'b0;
+               OFLOW=1'b0;
+               G=1'b0;
+               E=1'b0;
+               L=1'b0;
+               ERR=1'b0;
+               end
+          endcase
+     end
     end
-end
-
+   end
 endmodule

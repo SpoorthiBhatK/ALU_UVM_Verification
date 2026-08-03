@@ -29,16 +29,18 @@ endfunction
 
 
 task run_phase(uvm_phase phase);
-
+	repeat(0) @(ip_m_vif.ip_mon_cb);
+	begin
 	forever begin
 		drv2mon = alu_seq_item::type_id::create("drv2mon");
+		
 		collect_ip_monitor();
 		//`uvm_info("INPUT MONITOR", $sformatf("Input Monitor\n%s", drv2mon.sprint()), UVM_NONE)
 	end
+	end
 endtask
 virtual task collect_ip_monitor();
-	begin
-		//repeat(6)
+	begin		//repeat(6)
 		@(ip_m_vif.ip_mon_cb);
 		begin
 		

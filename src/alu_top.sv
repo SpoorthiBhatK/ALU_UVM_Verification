@@ -11,7 +11,7 @@ import alu_package::*;
 bit CLK, RST;
 alu_interface duv_inf(CLK, RST);
 
-alu #(.N(`DW), .C(`CW))duv(
+alu #(.DW(`DW), .CW(`CW))duv(
 	.CLK(duv_inf.CLK),
 	.RST(duv_inf.RST),
 	.CE(duv_inf.CE),
