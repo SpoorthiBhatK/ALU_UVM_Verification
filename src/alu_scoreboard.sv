@@ -43,8 +43,11 @@ task run_phase(uvm_phase phase);
 		op_mon = alu_seq_item::type_id::create("op_mon");
 		
 		ip_mon_fifo.get(ip_mon);
-		op_mon_fifo.get(op_mon);
 		ref_model(ip_mon);
+
+
+		op_mon_fifo.get(op_mon);
+		
 		//`uvm_info("REFERENCE_MODEL", $sformatf("Reference model\n%s", ip_mon.sprint()), UVM_NONE)
 		check_data(op_mon);
 		//`uvm_info("CHECKING OUTPUTS", $sformatf(" Checking outputs\n%s", op_mon.sprint()), UVM_NONE)

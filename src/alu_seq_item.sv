@@ -7,8 +7,8 @@ rand bit CE, MODE, CIN;
 rand bit [`CW-1:0] CMD;
 rand bit [1:0] INP_VALID;
 
-logic [`DW*2-1:0]RES;
-logic COUT, OFLOW, G, L, E, ERR;
+bit [`DW*2-1:0]RES;
+bit COUT, OFLOW, G, L, E, ERR;
 
 constraint m_v{
 	MODE -> CMD inside {[0:10]};

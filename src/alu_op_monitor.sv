@@ -29,10 +29,11 @@ function void connect_phase(uvm_phase phase);
 endfunction
 
 task run_phase(uvm_phase phase);
-	repeat(2) @(vif.op_mon_cb); begin
 	//rd_data = alu_seq_item::type_id::create("rd_data");
-	forever begin
-		rd_data = alu_seq_item::type_id::create("rd_data");		
+	repeat(7) @(vif.op_mon_cb);
+	 begin
+	//rd_data = alu_seq_item::type_id::create("rd_data");
+	forever begin		
 		collect_data();
 		//`uvm_info("OUTPUT MONITOR", $sformatf("Output Monitor\n%s", rd_data.sprint()), UVM_NONE)
 	end
@@ -42,8 +43,9 @@ endtask
 virtual task collect_data();
 begin
 	//repeat(2)
-	@(vif.op_mon_cb);
+	//repeat(2)@(vif.op_mon_cb);
 	begin
+		rd_data = alu_seq_item::type_id::create("rd_data");
 		rd_data.RES = vif.op_mon_cb.RES;
 		rd_data.ERR = vif.op_mon_cb.ERR;
 		rd_data.COUT = vif.op_mon_cb.COUT;
@@ -56,6 +58,7 @@ begin
 		`uvm_info("OUTPUT_MONITOR", $sformatf("RES: %d, ERR: %d, COUT: %d, OFLOW: %d, G: %d, L: %d, E: %d", rd_data.RES, rd_data.ERR, rd_data.COUT, rd_data.OFLOW, rd_data.G, rd_data.L, rd_data.E), UVM_NONE)
 
 	end
+	@(vif.op_mon_cb);
 end
 endtask
 
