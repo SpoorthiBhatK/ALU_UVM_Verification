@@ -4,7 +4,7 @@ class alu_subscriber extends uvm_subscriber #(alu_seq_item);
 `uvm_component_utils(alu_subscriber)
 
 alu_seq_item drv;
-alu_seq_item mon;
+//alu_seq_item mon;
 covergroup inp_cg;
 OPA_cp: coverpoint drv.OPA
 {

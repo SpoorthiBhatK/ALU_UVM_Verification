@@ -13,15 +13,22 @@ alu_seq_item op_mon;
 //virtual alu_interface intf;
 alu_config cfg;
 
-bit [`DW-1:0] opa1, opa2;
-bit [`DW-1:0] opb1, opb2;
+bit [`DW-1:0] opa1,opb1;
 bit [`CW-1:0] cmd;
 bit [`DW*2-1:0] res1, res2;
 
 bit [4:0]cnt;
 bit va, vb, mode;
 
-bit [1:0]m_cnt;
+bit [`DW*2-1:0] last_res;
+bit last_cout;
+bit last_oflow;
+bit last_g;
+bit last_l;
+bit last_e;
+bit last_err; 
+
+int m_cnt;
 
 function new(string name = "alu_scoreboard", uvm_component parent);
 	super.new(name, parent);
@@ -40,15 +47,14 @@ task run_phase(uvm_phase phase);
 	
 	forever begin
 		ip_mon = alu_seq_item::type_id::create("ip_mon");
-		op_mon = alu_seq_item::type_id::create("op_mon");
-		
+		op_mon = alu_seq_item::type_id::create("op_mon");	
 		ip_mon_fifo.get(ip_mon);
 		ref_model(ip_mon);
 
 
 		op_mon_fifo.get(op_mon);
 		
-		//`uvm_info("REFERENCE_MODEL", $sformatf("Reference model\n%s", ip_mon.sprint()), UVM_NONE)
+		//`uvm_info("REFERENCE_MODEL", $sformatf("Reference model\n%s", mon.sprint()), UVM_NONE)
 		check_data(op_mon);
 		//`uvm_info("CHECKING OUTPUTS", $sformatf(" Checking outputs\n%s", op_mon.sprint()), UVM_NONE)
 	end
@@ -116,6 +122,7 @@ task check_data(alu_seq_item cd);
 endtask
 	
 task reset();
+	//$display("RESET CALLED @ %0t", $time);
 	opa1 = '0;
 	opb1 = '0;
 	va = '0;
@@ -139,17 +146,54 @@ task store_ab(alu_seq_item t);
 	cnt = 0;
 	m_cnt = 0;
 endtask
+task store_ab_mul(alu_seq_item t);
+    	opa1 = t.OPA;
+    	opb1 = t.OPB;
+    	va = 1;
+    	vb = 1;
+    	cnt = 0;
+	m_cnt = 1;
+endtask
 task mode_cmd_change(alu_seq_item t);
-	if((mode != t.MODE) || (cmd != t.CMD))
+	//if((mode != t.MODE) || (cmd != t.CMD))
+	if(mode != t.MODE)
 		reset();
 mode = t.MODE;
 cmd = t.CMD;
 endtask
+
+task save_outputs(alu_seq_item t);
+	last_res   = t.RES;
+    	last_cout  = t.COUT;
+    	last_oflow = t.OFLOW;
+    	last_g     = t.G;
+    	last_l     = t.L;
+    	last_e     = t.E;
+    	last_err   = t.ERR;
+endtask
+
+task hold_outputs(alu_seq_item t);
+	t.RES    = last_res;
+    	t.COUT   = last_cout;
+    	t.OFLOW  = last_oflow;
+    	t.G      = last_g;
+    	t.L      = last_l;
+    	t.E      = last_e;
+    	t.ERR    = last_err;
+endtask
+
 task wait_cnt(alu_seq_item t);
+	hold_outputs(t);
 	if(va ^ vb)begin
 		cnt = cnt + 1;
 		if(cnt == 16)begin
-			//t.ERR = 1;
+			t.ERR = 1;
+		    	t.RES = 0;
+		    	t.COUT = 0;
+		    	t.OFLOW = 0;
+		    	t.G = 0;
+		    	t.L = 0;
+		    	t.E = 0;
 			reset();
 		end
 	end
@@ -165,22 +209,25 @@ task ref_model(alu_seq_item t);
 	end
 	else begin
 	if(t.CE == 0)begin
+		wait_cnt(t);
 		return;
 	end
 	else begin
 	if(t.MODE == 1)begin
-		if(t.MODE == 1)begin
 			mode_cmd_change(t);
 			case(t.CMD)
 			//ADD
 			4'b0000:begin
+			$display("ADD: MODE=%0d CMD=%0d INP_VALID=%0d va=%0d vb=%0d OPA=%0d OPB=%0d",
+          t.MODE, t.CMD, t.INP_VALID, va, vb, opa1, opb1);
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = opa1 + opb1;
 						t.COUT = t.RES[`DW]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -191,6 +238,7 @@ task ref_model(alu_seq_item t);
 					if(va)begin
 						t.RES = opa1 + opb1;
 						t.COUT = t.RES[`DW]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -200,6 +248,7 @@ task ref_model(alu_seq_item t);
 					store_ab(t);
 					t.RES = opa1 + opb1;
 					t.COUT = t.RES[`DW]?1:0;
+					save_outputs(t);
 					reset();
 				      end
 				endcase
@@ -207,12 +256,13 @@ task ref_model(alu_seq_item t);
 			//SUB
 			4'b0001:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = opa1 - opb1;
 						t.OFLOW = (opa1 < opb1)?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -223,6 +273,7 @@ task ref_model(alu_seq_item t);
 					if(va)begin
 						t.RES = opa1 - opb1;
 						t.OFLOW = (opa1 < opb1)?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -232,6 +283,7 @@ task ref_model(alu_seq_item t);
 					store_ab(t);
 					t.RES = opa1 - opb1;
 					t.OFLOW = (opa1 < opb1)?1:0;
+					save_outputs(t);
 					reset();
 				      end
 				endcase
@@ -239,12 +291,13 @@ task ref_model(alu_seq_item t);
 			//ADD_CIN
 			4'b0010:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = opa1 + opb1 + t.CIN;
 						t.COUT = t.RES[`DW]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -255,6 +308,7 @@ task ref_model(alu_seq_item t);
 					if(va)begin
 						t.RES = opa1 + opb1 + t.CIN;
 						t.COUT = t.RES[`DW]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -264,6 +318,7 @@ task ref_model(alu_seq_item t);
 					store_ab(t);
 					t.RES = opa1 + opb1 + t.CIN;
 					t.COUT = t.RES[`DW]?1:0;
+					save_outputs(t);
 					reset();
 				      end
 				endcase
@@ -271,12 +326,13 @@ task ref_model(alu_seq_item t);
 			//SUB_CIN
 			4'b0011:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = opa1 - opb1 - t.CIN;
 						t.OFLOW = (opa1 < opb1)?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -287,6 +343,7 @@ task ref_model(alu_seq_item t);
 					if(va)begin
 						t.RES = opa1 - opb1 - t.CIN;
 						t.OFLOW = (opa1 < opb1)?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -296,6 +353,7 @@ task ref_model(alu_seq_item t);
 					store_ab(t);
 					t.RES = opa1 - opb1 - t.CIN;
 					t.OFLOW = (opa1 < opb1)?1:0;
+					save_outputs(t);
 					reset();
 				      end
 				endcase
@@ -306,14 +364,16 @@ task ref_model(alu_seq_item t);
 				2'b01:begin
 					store_a(t);
 					t.RES = opa1 + 1;
+					save_outputs(t);
 					reset();
 					end
 				2'b11:begin
 					store_a(t);
 					t.RES = opa1 + 1;
+					save_outputs(t);
 					reset();
 					end
-				default: reset();//wait_cnt(t);
+				default: wait_cnt(t);
 				endcase
 				end
 			4'b0101:begin
@@ -321,14 +381,16 @@ task ref_model(alu_seq_item t);
 				2'b01:begin
 					store_a(t);
 					t.RES = opa1 - 1;
+					save_outputs(t);
 					reset();
 					end
 				 2'b11:begin
 					store_a(t);
 					t.RES = opa1 - 1;
+					save_outputs(t);
 					reset();
 					end
-				default: reset(); //wait_cnt(t);
+				default: wait_cnt(t);
 				endcase
 				end
 			4'b0110:begin
@@ -336,14 +398,16 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					t.RES = opb1 + 1;
+					save_outputs(t);
 					reset();
 					end
 				2'b11:begin
 					store_b(t);
 					t.RES = opb1 + 1;
+					save_outputs(t);
 					reset();
 					end
-				default: reset(); //wait_cnt(t);
+				default: wait_cnt(t);
 				endcase				
 				end
 
@@ -352,23 +416,26 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					t.RES = opb1 - 1;
+					save_outputs(t);
 					reset();
 					end
 				2'b11:begin
 					store_b(t);
 					t.RES = opb1 - 1;
+					save_outputs(t);
 					reset();
 					end
-				default: reset(); // wait_cnt(t);
+				default: wait_cnt(t);
 				endcase	
 				end
 			4'b1000:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						{t.G, t.E, t.L} = (opa1 > opb1)?3'b100:(opa1 == opb1)? 3'b01: 3'b001;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -378,6 +445,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						{t.G, t.E, t.L} = (opa1 > opb1)?3'b100:(opa1 == opb1)? 3'b01: 3'b001;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -386,26 +454,30 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					{t.G, t.E, t.L} = (opa1 > opb1)?3'b100:(opa1 == opb1)? 3'b01: 3'b001;
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b1001:begin//check temp2
 				case(t.INP_VALID)
-				2'b00: reset();
+				2'b00: wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
-					if (m_cnt == 0) begin
-						res1 = opa1 + 1;
-						res2 = opb1 + 1;
-					end
-					if(m_cnt < 2)
-						m_cnt = m_cnt + 1;
-					else begin
-						t.RES = res1 * res2;
-						reset();
-				      	end
+						case(m_cnt)
+						0: begin
+							res1 = opa1 + 1;
+							res2 = opb1 + 1;
+							m_cnt++;
+						   end
+						1: m_cnt++;
+						2:begin
+							t.RES = res1 * res2;
+							save_outputs(t);
+							reset();
+					      	   end
+						endcase
 					end
 					else
 						wait_cnt(t);
@@ -413,54 +485,61 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					if(va)begin
-					if (m_cnt == 0) begin
-						res1 = opa1 + 1;
-						res2 = opb1 + 1;
-					end
-					if(m_cnt < 2)
-						m_cnt = m_cnt + 1;
-					else begin
-						t.RES = res1 * res2;
-						reset();
-				      	end
-					end
+						case(m_cnt)
+						0: begin
+							res1 = opa1 + 1;
+							res2 = opb1 + 1;
+							m_cnt++;
+						   end
+						1: m_cnt++;
+						2:begin
+							t.RES = res1 * res2;
+							save_outputs(t);
+							reset();
+					      	   end
+						endcase	
+					end				
 					else
 						wait_cnt(t);
 					end
 				2'b11:begin
-					if (!(va && vb)) 
-					store_ab(t);
-					if (m_cnt == 0) begin
+					store_ab_mul(t);
+					case(m_cnt)
+					0: begin
 						res1 = opa1 + 1;
 						res2 = opb1 + 1;
-					end
-					if(m_cnt < 2)
-						m_cnt = m_cnt + 1;
-					else begin
+						m_cnt++;
+					   end
+					1: m_cnt++;
+					2:begin
 						t.RES = res1 * res2;
+						save_outputs(t);
 						reset();
-				      	end
+					   end
+					endcase
 					end
 					endcase
 				end
 
 			4'b1010:begin//check temp2
 				case(t.INP_VALID)
-				2'b00: reset();
+				2'b00: wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
-					if (m_cnt == 0) begin
-						res1 = opa1 << 1;
-						res2 = opb1;
-
-					end
-					if(m_cnt < 2)
-						m_cnt = m_cnt + 1;
-					else begin
-						t.RES = res1 * res2;
-						reset();
-				      	end
+						case(m_cnt)
+						0: begin
+							res1 = opa1 << 1;
+							res2 = opb1;
+							m_cnt++;
+						   end
+						1: m_cnt++;
+						2:begin
+							t.RES = res1 * res2;
+							save_outputs(t);
+							reset();
+					      	   end
+						endcase
 					end
 					else
 						wait_cnt(t);
@@ -468,34 +547,38 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					if(va)begin
-					if (m_cnt == 0) begin
-						res1 = opa1 << 1;
-						res2 = opb1;
-
-					end
-					if(m_cnt < 2)
-						m_cnt = m_cnt + 1;
-					else begin
-						t.RES = res1 * res2;
-						reset();
-				      	end
+						case(m_cnt)
+						0: begin
+							res1 = opa1 << 1;
+							res2 = opb1;
+							m_cnt++;
+						   end
+						1: m_cnt++;
+						2:begin
+							t.RES = res1 * res2;
+							save_outputs(t);
+							reset();
+					      	   end
+						endcase
 					end
 					else
 						wait_cnt(t);
 					end
-				2'b11:begin 
-					if (!(va && vb))
-					store_ab(t);
-					if (m_cnt == 0) begin
+				2'b11:begin
+					store_ab_mul(t);
+					case(m_cnt)
+					0: begin
 						res1 = opa1 << 1;
 						res2 = opb1;
-					end
-					if(m_cnt < 2)
-						m_cnt = m_cnt + 1;
-					else begin
+						m_cnt++;
+					   end
+					1: m_cnt++;
+					2:begin
 						t.RES = res1 * res2;
+						save_outputs(t);
 						reset();
-				      	end
+					   end
+					endcase
 					end
 					endcase
 				end
@@ -504,15 +587,16 @@ task ref_model(alu_seq_item t);
 	end
 //Logical
 	else begin
-		reset();
+		//reset();
 		case(t.CMD)
 			4'b0000:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, (opa1 & opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -522,6 +606,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, (opa1 & opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -530,17 +615,19 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, (opa1 & opb1)};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b0001: begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, ~(opa1 & opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -550,6 +637,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, ~(opa1 & opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -558,17 +646,19 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, ~(opa1 & opb1)};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b0010:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, (opa1 | opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -578,6 +668,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, (opa1 | opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -586,17 +677,19 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, (opa1 | opb1)};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b0011:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, ~(opa1 | opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -606,6 +699,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, ~(opa1 | opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -614,17 +708,19 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, ~(opa1 | opb1)};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b0100: begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, (opa1 ^ opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -634,6 +730,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, (opa1 ^ opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -642,17 +739,19 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, (opa1 ^ opb1)};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b0101:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, ~(opa1 ^ opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -662,6 +761,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, ~(opa1 ^ opb1)};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -670,17 +770,19 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, ~(opa1 ^ opb1)};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b0110:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, ~opa1};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -690,6 +792,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, ~opa1};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -698,17 +801,19 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, ~opa1};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b0111:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
 						t.RES = {1'b0, ~opb1};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -718,6 +823,7 @@ task ref_model(alu_seq_item t);
 					store_b(t);
 					if(va)begin
 						t.RES = {1'b0, ~opb1};
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -726,130 +832,92 @@ task ref_model(alu_seq_item t);
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, ~opb1};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b1000:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
-					if(vb)begin
-						t.RES = {1'b0, opa1 >> 1};
-						reset();
-					end
-					else
-						wait_cnt(t);
+					t.RES = {1'b0, opa1 >> 1};
+					save_outputs(t);
+					reset();
 				      end
-				2'b10:begin
-					store_b(t);
-					if(va)begin
-						t.RES = {1'b0, opa1 >> 1};
-						reset();
-					end
-					else
-						wait_cnt(t);
-				      end
+				2'b10:reset();
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, opa1 >> 1};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b1001:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
-					if(vb)begin
-						t.RES = {1'b0, opa1 << 1};
-						reset();
+					t.RES = {1'b0, opa1 << 1};
+					save_outputs(t);
+					reset();
 					end
-					else
-						wait_cnt(t);
-				      end
-				2'b10:begin
-					store_b(t);
-					if(va)begin
-						t.RES = {1'b0, opa1 << 1};
-						reset();
-					end
-					else
-						wait_cnt(t);
-				      end
+				2'b10:reset();
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, opa1 << 1};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b1010:begin
 				case(t.INP_VALID)
-				2'b00:reset();
-				2'b01:begin
-					store_a(t);
-					if(vb)begin
-						t.RES = {1'b0, opb1 >> 1};
-						reset();
-					end
-					else
-						wait_cnt(t);
-				      end
+				2'b00:wait_cnt(t);
+				2'b01:reset();
 				2'b10:begin
 					store_b(t);
-					if(va)begin
-						t.RES = {1'b0, opb1 >> 1};
-						reset();
-					end
-					else
-						wait_cnt(t);
+					t.RES = {1'b0, opb1 >> 1};
+					save_outputs(t);
+					reset();
 				      end
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, opb1 >> 1};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b1011: begin
 				case(t.INP_VALID)
-				2'b00:reset();
-				2'b01:begin
-					store_a(t);
-					if(vb)begin
-						t.RES = {1'b0, opb1 << 1};
-						reset();
-					end
-					else
-						wait_cnt(t);
-				      end
+				2'b00:wait_cnt(t);
+				2'b01:reset();
 				2'b10:begin
 					store_b(t);
-					if(va)begin
-						t.RES = {1'b0, opb1 << 1};
-						reset();
-					end
-					else
-						wait_cnt(t);
+					t.RES = {1'b0, opb1 << 1};
+					save_outputs(t);
+					reset();
 				      end
 				2'b11:begin
 					store_ab(t);
 					t.RES = {1'b0, opb1 << 1};
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b1100:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
-						t.RES = {opa1 << opb1[$clog2(`DW)-1:0]};
+						t.RES = {(opa1 << opb1[$clog2(`DW)-1:0]) | (opa1 >> (`DW - opb1[$clog2(`DW)-1:0]))};
 						t.ERR = opb1[(`DW-1):$clog2(`DW)]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -858,8 +926,9 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					if(va)begin
-						t.RES = {opa1 << opb1[$clog2(`DW)-1:0]};
+						t.RES = {(opa1 << opb1[$clog2(`DW)-1:0]) | (opa1 >> (`DW - opb1[$clog2(`DW)-1:0]))};
 						t.ERR = opb1[(`DW-1):$clog2(`DW)]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -867,20 +936,22 @@ task ref_model(alu_seq_item t);
 				      end
 				2'b11:begin
 					store_ab(t);
-					t.RES = {opa1 << opb1[$clog2(`DW)-1:0]};
+					t.RES = {(opa1 << opb1[$clog2(`DW)-1:0]) | (opa1 >> (`DW - opb1[$clog2(`DW)-1:0]))};
 					t.ERR = opb1[(`DW-1):$clog2(`DW)]?1:0;
+					save_outputs(t);
 					reset();
 				      end
 				endcase
 				end
 			4'b1101:begin
 				case(t.INP_VALID)
-				2'b00:reset();
+				2'b00:wait_cnt(t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
-						t.RES = {opa1 >> opb1[$clog2(`DW)-1:0]};
+						t.RES = {(opa1 >> opb1[$clog2(`DW)-1:0]) | (opa1 << (`DW - opb1[$clog2(`DW)-1:0]))};
 						t.ERR = opb1[(`DW-1):$clog2(`DW)]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -889,8 +960,9 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					if(va)begin
-						t.RES = {opa1 >> opb1[$clog2(`DW)-1:0]};
+						t.RES = {(opa1 >> opb1[$clog2(`DW)-1:0]) | (opa1 << (`DW - opb1[$clog2(`DW)-1:0]))};
 						t.ERR = opb1[(`DW-1):$clog2(`DW)]?1:0;
+						save_outputs(t);
 						reset();
 					end
 					else
@@ -898,8 +970,9 @@ task ref_model(alu_seq_item t);
 				      end
 				2'b11:begin
 					store_ab(t);
-					t.RES = {opa1 >> opb1[$clog2(`DW)-1:0]};
+					t.RES = {(opa1 >> opb1[$clog2(`DW)-1:0]) | (opa1 << (`DW - opb1[$clog2(`DW)-1:0]))};
 					t.ERR = opb1[(`DW-1):$clog2(`DW)]?1:0;
+					save_outputs(t);
 					reset();
 				      end
 				endcase
@@ -909,7 +982,7 @@ task ref_model(alu_seq_item t);
 				end
 			endcase
 		end
-		end
+		//end
 	end
 	end
 endtask
