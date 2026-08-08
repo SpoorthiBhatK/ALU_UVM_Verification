@@ -184,6 +184,16 @@ endtask
 
 task wait_cnt(alu_seq_item t);
 	hold_outputs(t);
+	
+	if(m_cnt > 0)begin
+		m_cnt = m_cnt + 1;
+		if(m_cnt == 3)begin
+			t.RES = res1 * res2;
+			save_outputs(t);
+			reset();
+		end
+	end
+
 	if(va ^ vb)begin
 		cnt = cnt + 1;
 		if(cnt == 16)begin
@@ -465,19 +475,9 @@ task ref_model(alu_seq_item t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
-						case(m_cnt)
-						0: begin
-							res1 = opa1 + 1;
-							res2 = opb1 + 1;
-							m_cnt++;
-						   end
-						1: m_cnt++;
-						2:begin
-							t.RES = res1 * res2;
-							save_outputs(t);
-							reset();
-					      	   end
-						endcase
+						res1 = opa1 + 1;
+						res2 = opb1 + 1;
+						m_cnt++;
 					end
 					else
 						wait_cnt(t);
@@ -485,39 +485,19 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					if(va)begin
-						case(m_cnt)
-						0: begin
-							res1 = opa1 + 1;
-							res2 = opb1 + 1;
-							m_cnt++;
-						   end
-						1: m_cnt++;
-						2:begin
-							t.RES = res1 * res2;
-							save_outputs(t);
-							reset();
-					      	   end
-						endcase	
+						res1 = opa1 + 1;
+						res2 = opb1 + 1;
+						m_cnt++;
 					end				
 					else
 						wait_cnt(t);
 					end
 				2'b11:begin
-					store_ab_mul(t);
-					case(m_cnt)
-					0: begin
-						res1 = opa1 + 1;
-						res2 = opb1 + 1;
-						m_cnt++;
-					   end
-					1: m_cnt++;
-					2:begin
-						t.RES = res1 * res2;
-						save_outputs(t);
-						reset();
-					   end
-					endcase
+					store_ab_mul(t);	
+					res1 = opa1 + 1;	
+				    	res2 = opb1 + 1;
 					end
+					
 					endcase
 				end
 
@@ -527,19 +507,9 @@ task ref_model(alu_seq_item t);
 				2'b01:begin
 					store_a(t);
 					if(vb)begin
-						case(m_cnt)
-						0: begin
-							res1 = opa1 << 1;
-							res2 = opb1;
-							m_cnt++;
-						   end
-						1: m_cnt++;
-						2:begin
-							t.RES = res1 * res2;
-							save_outputs(t);
-							reset();
-					      	   end
-						endcase
+						res1 = opa1 << 1;
+						res2 = opb1;
+						m_cnt++;
 					end
 					else
 						wait_cnt(t);
@@ -547,38 +517,19 @@ task ref_model(alu_seq_item t);
 				2'b10:begin
 					store_b(t);
 					if(va)begin
-						case(m_cnt)
-						0: begin
-							res1 = opa1 << 1;
-							res2 = opb1;
-							m_cnt++;
-						   end
-						1: m_cnt++;
-						2:begin
-							t.RES = res1 * res2;
-							save_outputs(t);
-							reset();
-					      	   end
-						endcase
+						res1 = opa1 << 1;
+						res2 = opb1;
+						m_cnt++;
 					end
 					else
 						wait_cnt(t);
 					end
 				2'b11:begin
 					store_ab_mul(t);
-					case(m_cnt)
-					0: begin
-						res1 = opa1 << 1;
-						res2 = opb1;
-						m_cnt++;
-					   end
-					1: m_cnt++;
-					2:begin
-						t.RES = res1 * res2;
-						save_outputs(t);
-						reset();
-					   end
-					endcase
+					res1 = opa1 << 1;
+				        res2 = opb1;
+				        m_cnt = 1;
+					   
 					end
 					endcase
 				end

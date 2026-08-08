@@ -46,7 +46,7 @@ bit [1:0] cnt = 2;
 			repeat(cnt)begin
 				idel_req = alu_seq_item::type_id::create("idle_req");	
 				start_item(idel_req);
-				assert(idel_req.randomize()with{CE == 0;});
+				assert(idel_req.randomize()with{CE == 1;INP_VALID==0;CMD == i;});
 				finish_item(idel_req);
 			end
 		end	
