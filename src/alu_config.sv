@@ -1,4 +1,5 @@
 `include "defines.sv"
+
 class alu_config extends uvm_object;
 `uvm_object_utils(alu_config)
 

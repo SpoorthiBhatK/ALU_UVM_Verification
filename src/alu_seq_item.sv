@@ -1,4 +1,5 @@
 `include "defines.sv"
+
 class alu_seq_item extends uvm_sequence_item;
 
 rand bit [`DW-1:0] OPA;

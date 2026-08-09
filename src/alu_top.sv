@@ -29,11 +29,9 @@ alu #(.DW(`DW), .CW(`CW))duv(
 	.L(duv_inf.L),
 	.E(duv_inf.E),
 	.ERR(duv_inf.ERR));
-
 initial begin
 	CLK = 1'b0;
-	forever 
-		#5 CLK = ~CLK;
+	forever #5 CLK = ~CLK;
 end
 
 initial begin

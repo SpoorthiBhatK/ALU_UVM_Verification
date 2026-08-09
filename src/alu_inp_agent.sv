@@ -15,6 +15,7 @@ endfunction
 
 function void build_phase(uvm_phase phase);
 	super.build_phase(phase);
+
 	if(!uvm_config_db #(alu_config)::get(this, "", "alu_config", m_cfg))
 		`uvm_fatal(get_type_name(), "input_agent Getting Failed")
 	inp_mon = alu_inp_monitor::type_id::create("inp_mon", this);

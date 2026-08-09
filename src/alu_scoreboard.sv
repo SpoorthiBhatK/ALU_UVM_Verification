@@ -50,13 +50,8 @@ task run_phase(uvm_phase phase);
 		op_mon = alu_seq_item::type_id::create("op_mon");	
 		ip_mon_fifo.get(ip_mon);
 		ref_model(ip_mon);
-
-
 		op_mon_fifo.get(op_mon);
-		
-		//`uvm_info("REFERENCE_MODEL", $sformatf("Reference model\n%s", mon.sprint()), UVM_NONE)
 		check_data(op_mon);
-		//`uvm_info("CHECKING OUTPUTS", $sformatf(" Checking outputs\n%s", op_mon.sprint()), UVM_NONE)
 	end
 endtask
 
@@ -65,64 +60,49 @@ task check_data(alu_seq_item cd);
 	
 	if(ip_mon.RES == cd.RES)begin
 		$display("RES MATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp RES: %d, actual RES: %d", ip_mon.RES, cd.RES), UVM_NONE)
 	end
 	else begin
 		$display("RES MISMATCH\n");
- 		//`uvm_info("Scoreboard",  $sformatf("Exp RES: %d, actual RES: %d", ip_mon.RES, cd.RES), UVM_NONE)
 	end
 	if(ip_mon.ERR == cd.ERR)begin
 		$display("ERR MATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp ERR: %d, actual ERR: %d", ip_mon.ERR, cd.ERR), UVM_NONE)
 	end
 	else begin
 		$display("ERR MISMATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp ERR: %d, actual ERR: %d", ip_mon.ERR, cd.ERR), UVM_NONE)
 	end
 	if(ip_mon.COUT == cd.COUT)begin
 		$display("COUT MATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp COUT: %d, actual COUT: %d", ip_mon.COUT, cd.COUT), UVM_NONE)
 	end
 	else begin
 		$display("COUT MISMATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp COUT: %d, actual COUT: %d", ip_mon.COUT, cd.COUT), UVM_NONE)
 	end
 	if(ip_mon.OFLOW == cd.OFLOW)begin
 		$display("OFLOW MATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp OFLOW: %d, actual OFLOW: %d", ip_mon.OFLOW, cd.OFLOW), UVM_NONE)
 	end
 	else begin
 		$display("OFLOW MISMATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp OFLOW: %d, actual OFLOW: %d", ip_mon.OFLOW, cd.OFLOW), UVM_NONE)
 	end
 	if(ip_mon.G == cd.G)begin
 		$display("G MATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp G: %d, actual G: %d", ip_mon.G, cd.G), UVM_NONE)
 	end
 	else begin
 		$display("G MISMATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp G: %d, actual G: %d", ip_mon.G, cd.G), UVM_NONE)
 	end
 	if(ip_mon.L == cd.L)begin
 		$display("L MATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp L: %d, actual L: %d", ip_mon.L, cd.L), UVM_NONE)
 	end
 	else begin
 		$display("L MISMATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp L: %d, actual L: %d", ip_mon.L, cd.L), UVM_NONE)
 	end
 	if(ip_mon.E == cd.E)begin
 		$display("E MATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp E: %d, actual E: %d", ip_mon.E, cd.E), UVM_NONE)
 	end
 	else begin
 		$display("E MISMATCH\n");
-		//`uvm_info("Scoreboard",  $sformatf("Exp E: %d, actual E: %d", ip_mon.E, cd.E), UVM_NONE)
 	end
 endtask
 	
 task reset();
-	//$display("RESET CALLED @ %0t", $time);
 	opa1 = '0;
 	opb1 = '0;
 	va = '0;
@@ -155,7 +135,6 @@ task store_ab_mul(alu_seq_item t);
 	m_cnt = 1;
 endtask
 task mode_cmd_change(alu_seq_item t);
-	//if((mode != t.MODE) || (cmd != t.CMD))
 	if(mode != t.MODE)
 		reset();
 mode = t.MODE;
@@ -469,7 +448,7 @@ task ref_model(alu_seq_item t);
 				      end
 				endcase
 				end
-			4'b1001:begin//check temp2
+			4'b1001:begin
 				case(t.INP_VALID)
 				2'b00: wait_cnt(t);
 				2'b01:begin
@@ -501,7 +480,7 @@ task ref_model(alu_seq_item t);
 					endcase
 				end
 
-			4'b1010:begin//check temp2
+			4'b1010:begin
 				case(t.INP_VALID)
 				2'b00: wait_cnt(t);
 				2'b01:begin
@@ -538,7 +517,6 @@ task ref_model(alu_seq_item t);
 	end
 //Logical
 	else begin
-		//reset();
 		case(t.CMD)
 			4'b0000:begin
 				case(t.INP_VALID)
@@ -933,7 +911,6 @@ task ref_model(alu_seq_item t);
 				end
 			endcase
 		end
-		//end
 	end
 	end
 endtask

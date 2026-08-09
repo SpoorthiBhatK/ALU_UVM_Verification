@@ -1,4 +1,5 @@
 `include "defines.sv"
+
 class alu_op_agent extends uvm_agent;
 
 `uvm_component_utils(alu_op_agent)

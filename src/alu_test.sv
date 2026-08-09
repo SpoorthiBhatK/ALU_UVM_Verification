@@ -1,5 +1,7 @@
 `include "defines.sv"
+
 class alu_test extends uvm_test;
+
 `uvm_component_utils(alu_test)
 
 alu_env env;
@@ -51,7 +53,6 @@ alu_sequence s1;
 	phase.raise_objection(this);
 	s1=alu_sequence::type_id::create("s1");
 	s1.start(env.inp_agt.sqr);
-	//#100;
 	phase.drop_objection(this);
 
 

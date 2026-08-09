@@ -60,7 +60,6 @@ bit [1:0] cnt = 2;
 		end	
 	end	
 endtask
-//Corner cases
 task add_corner();
 	repeat(10)begin
 		req = alu_seq_item::type_id::create("req");

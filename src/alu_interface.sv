@@ -1,14 +1,12 @@
 `timescale 1ns/1ns
 `include "defines.sv"
 interface alu_interface(input bit CLK, RST);
-	//IP	
 	logic [`DW-1:0] OPA;
 	logic [`DW-1:0] OPB;
 	logic CE, MODE, CIN;
 	logic [`CW-1:0] CMD;
 	logic [1:0] INP_VALID;
 
-	//OP
 	logic [`DW*2-1:0]RES;
 	logic COUT, OFLOW, G, L, E, ERR;
 clocking drv_cb@(posedge CLK);
