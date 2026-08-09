@@ -7,9 +7,17 @@ function new(string name = "alu_sequence");
 endfunction
 
 task body();
+//	`uvm_info("Seq",$sformatf("---------------------------Arithmetic-----------------------"),UVM_NONE)
 	arithmetic_seq();
+//	`uvm_info("Seq",$sformatf("---------------------------Multiplication-----------------------"),UVM_NONE)
 	mul_latency_seq();
+//	`uvm_info("Seq",$sformatf("---------------------------Logical-----------------------"),UVM_NONE)
 	logical_seq();
+//	`uvm_info("Seq",$sformatf("---------------------------Corner add case-----------------------"),UVM_NONE)
+	add_corner();
+//	`uvm_info("Seq",$sformatf("---------------------------Corner sub case-----------------------"),UVM_NONE)
+	sub_corner();
+	
 endtask
 
 task logical_seq();
@@ -52,6 +60,26 @@ bit [1:0] cnt = 2;
 		end	
 	end	
 endtask
+//Corner cases
+task add_corner();
+	repeat(10)begin
+		req = alu_seq_item::type_id::create("req");
+	    	start_item(req);
+	    	assert(req.randomize() with {MODE == 1;CMD == 0;CE == 1;INP_VALID == 2'b11;OPA == 8'hFF;OPB == 8'hFF;CIN == 1'b1;});
+		finish_item(req);
+	end
+endtask
+
+task sub_corner();
+	repeat(10)begin
+		req = alu_seq_item::type_id::create("req");
+	    	start_item(req);
+	    	assert(req.randomize() with {MODE == 1;CMD == 1;CE == 1;INP_VALID == 2'b11;OPA == 8'h00;OPB == 8'hFF;CIN == 1'b1;});
+		finish_item(req);
+	end
+endtask	
+
+
 endclass
 
 
