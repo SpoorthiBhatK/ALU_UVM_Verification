@@ -45,7 +45,7 @@ initial begin
 	$dumpfile("waves.vcd");
 	$dumpvars;
 	
-	run_test("test1");
+	run_test();
 end
 
 endmodule

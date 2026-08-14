@@ -10,7 +10,6 @@ uvm_tlm_analysis_fifo #(alu_seq_item) op_mon_fifo;
 alu_seq_item ip_mon;
 alu_seq_item op_mon;
 
-//virtual alu_interface intf;
 alu_config cfg;
 
 bit [`DW-1:0] opa1,opb1;
@@ -28,8 +27,8 @@ bit last_l;
 bit last_e;
 bit last_err; 
 
-int m_cnt;
-
+bit mul_first_output = 1;
+alu_seq_item mul_exp_q[$];
 function new(string name = "alu_scoreboard", uvm_component parent);
 	super.new(name, parent);
 	ip_mon_fifo = new("ip_mon_fifo", this);
@@ -42,7 +41,6 @@ function void build_phase(uvm_phase phase);
     	if(!uvm_config_db#(alu_config)::get(this, "", "alu_config", cfg))
         	`uvm_fatal(get_type_name(), "Failed to get config")
 endfunction
-
 task run_phase(uvm_phase phase);
 	
 	forever begin
@@ -50,11 +48,79 @@ task run_phase(uvm_phase phase);
 		op_mon = alu_seq_item::type_id::create("op_mon");	
 		ip_mon_fifo.get(ip_mon);
 		ref_model(ip_mon);
-		op_mon_fifo.get(op_mon);
-		check_data(op_mon);
-	end
+
+		if ((ip_mon.MODE == 1) && ((ip_mon.CMD == 4'b1001) || (ip_mon.CMD == 4'b1010))) begin
+
+			mul_exp_q.push_back(ip_mon);
+	 	    	op_mon_fifo.get(op_mon);
+
+		    	if (mul_first_output) begin
+		        	mul_first_output = 0;
+		   	end
+		    	else begin
+		        	alu_seq_item exp;
+		        	exp = mul_exp_q.pop_front();
+			        check_data_exp(exp, op_mon);
+		    	end
+
+		end
+		else begin
+			op_mon_fifo.get(op_mon);
+		    	check_data(op_mon);
+		end
+	    end
 endtask
 
+task check_data_exp(alu_seq_item exp, alu_seq_item cd);
+
+    `uvm_info("Scoreboard",
+        $sformatf(
+        "\nExp RES: %d, actual RES: %d\nExp ERR: %d, actual ERR: %d\nExp COUT: %d, actual COUT: %d\nExp OFLOW: %d, actual OFLOW: %d\nExp G: %d, actual G: %d\nExp L: %d, actual L: %d\nExp E: %d, actual E: %d\n",
+        exp.RES, cd.RES,
+        exp.ERR, cd.ERR,
+        exp.COUT, cd.COUT,
+        exp.OFLOW, cd.OFLOW,
+        exp.G, cd.G,
+        exp.L, cd.L,
+        exp.E, cd.E),
+        UVM_NONE);
+
+    if(exp.RES == cd.RES)
+        $display("RES MATCH\n");
+    else
+        $display("RES MISMATCH\n");
+
+    if(exp.ERR == cd.ERR)
+        $display("ERR MATCH\n");
+    else
+        $display("ERR MISMATCH\n");
+
+    if(exp.COUT == cd.COUT)
+        $display("COUT MATCH\n");
+    else
+        $display("COUT MISMATCH\n");
+
+    if(exp.OFLOW == cd.OFLOW)
+        $display("OFLOW MATCH\n");
+    else
+        $display("OFLOW MISMATCH\n");
+
+    if(exp.G == cd.G)
+        $display("G MATCH\n");
+    else
+        $display("G MISMATCH\n");
+
+    if(exp.L == cd.L)
+        $display("L MATCH\n");
+    else
+        $display("L MISMATCH\n");
+
+    if(exp.E == cd.E)
+        $display("E MATCH\n");
+    else
+        $display("E MISMATCH\n");
+
+endtask
 task check_data(alu_seq_item cd);
 	`uvm_info("Scoreboard",  $sformatf("\nExp RES: %d, actual RES: %d\nExp ERR: %d, actual ERR: %d\nExp COUT: %d, actual COUT: %d\nExp OFLOW: %d, actual OFLOW: %d\nExp G: %d, actual G: %d\nExp L: %d, actual L: %d\nExp E: %d, actual E: %d\n", ip_mon.RES, cd.RES, ip_mon.ERR, cd.ERR, ip_mon.COUT, cd.COUT, ip_mon.OFLOW, cd.OFLOW, ip_mon.G, cd.G, ip_mon.L, cd.L, ip_mon.E, cd.E), UVM_NONE)
 	
@@ -108,7 +174,6 @@ task reset();
 	va = '0;
 	vb = '0;
 	cnt = '0;
-	m_cnt = '0;
 endtask
 task store_a(alu_seq_item t);
 	opa1 = t.OPA;
@@ -124,16 +189,8 @@ task store_ab(alu_seq_item t);
 	vb = 1;
 	va = 1;
 	cnt = 0;
-	m_cnt = 0;
 endtask
-task store_ab_mul(alu_seq_item t);
-    	opa1 = t.OPA;
-    	opb1 = t.OPB;
-    	va = 1;
-    	vb = 1;
-    	cnt = 0;
-	m_cnt = 1;
-endtask
+
 task mode_cmd_change(alu_seq_item t);
 	if(mode != t.MODE)
 		reset();
@@ -164,15 +221,6 @@ endtask
 task wait_cnt(alu_seq_item t);
 	hold_outputs(t);
 	
-	if(m_cnt > 0)begin
-		m_cnt = m_cnt + 1;
-		if(m_cnt == 3)begin
-			t.RES = res1 * res2;
-			save_outputs(t);
-			reset();
-		end
-	end
-
 	if(va ^ vb)begin
 		cnt = cnt + 1;
 		if(cnt == 16)begin
@@ -207,8 +255,6 @@ task ref_model(alu_seq_item t);
 			case(t.CMD)
 			//ADD
 			4'b0000:begin
-			$display("ADD: MODE=%0d CMD=%0d INP_VALID=%0d va=%0d vb=%0d OPA=%0d OPB=%0d",
-          t.MODE, t.CMD, t.INP_VALID, va, vb, opa1, opb1);
 				case(t.INP_VALID)
 				2'b00:wait_cnt(t);
 				2'b01:begin
@@ -448,72 +494,100 @@ task ref_model(alu_seq_item t);
 				      end
 				endcase
 				end
-			4'b1001:begin
-				case(t.INP_VALID)
-				2'b00: wait_cnt(t);
-				2'b01:begin
-					store_a(t);
-					if(vb)begin
-						res1 = opa1 + 1;
-						res2 = opb1 + 1;
-						m_cnt++;
-					end
-					else
-						wait_cnt(t);
-					end
-				2'b10:begin
-					store_b(t);
-					if(va)begin
-						res1 = opa1 + 1;
-						res2 = opb1 + 1;
-						m_cnt++;
-					end				
-					else
-						wait_cnt(t);
-					end
-				2'b11:begin
-					store_ab_mul(t);	
-					res1 = opa1 + 1;	
-				    	res2 = opb1 + 1;
-					end
-					
-					endcase
-				end
 
-			4'b1010:begin
+			4'b1001: begin
 				case(t.INP_VALID)
-				2'b00: wait_cnt(t);
-				2'b01:begin
-					store_a(t);
-					if(vb)begin
-						res1 = opa1 << 1;
-						res2 = opb1;
-						m_cnt++;
-					end
-					else
-						wait_cnt(t);
-					end
-				2'b10:begin
-					store_b(t);
-					if(va)begin
-						res1 = opa1 << 1;
-						res2 = opb1;
-						m_cnt++;
-					end
-					else
-						wait_cnt(t);
-					end
-				2'b11:begin
-					store_ab_mul(t);
-					res1 = opa1 << 1;
-				        res2 = opb1;
-				        m_cnt = 1;
-					   
-					end
-					endcase
+				2'b00: begin
+					wait_cnt(t);
 				end
-			default:reset();
-			endcase
+				2'b01: begin
+				   	store_a(t);
+				    	if(vb) begin
+						res1 = (opa1 + 1) & 8'hFF;
+						res2 = (opb1 + 1) & 8'hFF;
+						t.RES = res1 * res2;
+						save_outputs(t);
+						reset();
+		                        end
+				    	else begin
+						wait_cnt(t);
+				         end
+					end
+				2'b10: begin
+					    store_b(t);
+					    if(va) begin
+						res1 = (opa1 + 1) & 8'hFF;
+						res2 = (opb1 + 1) & 8'hFF;
+
+						t.RES = res1 * res2;
+
+						save_outputs(t);
+						reset();
+					    end
+					    else begin
+						wait_cnt(t);
+					    end
+					end
+				2'b11: begin
+					    opa1 = t.OPA;
+					    opb1 = t.OPB;
+
+					    res1 = (opa1 + 1) & 8'hFF;
+					    res2 = (opb1 + 1) & 8'hFF;
+
+					    t.RES = res1 * res2;
+
+					    save_outputs(t);
+					    reset();
+					end
+			    endcase
+
+			end
+			4'b1010: begin
+			    	case(t.INP_VALID)
+				2'b00: begin
+                			wait_cnt(t);
+				end
+				2'b01: begin
+				    		store_a(t);
+				    	if(vb) begin
+						res1 = (opa1 << 1) & 8'hFF;
+						res2 = opb1;
+						t.RES = res1 * res2;
+						save_outputs(t);
+						reset();
+					    end
+				    	else begin
+						wait_cnt(t);
+					end
+				end
+				2'b10: begin
+				    		store_b(t);
+				       	if(va) begin
+						res1 = (opa1 << 1) & 8'hFF;;
+						res2 = opb1;
+						t.RES = res1 * res2;
+						save_outputs(t);
+						reset();
+				    	end
+				    	else begin
+						wait_cnt(t);
+				    	end
+				end
+				2'b11: begin
+					    opa1 = t.OPA;
+					    opb1 = t.OPB;
+					    res1 = (opa1 << 1) & 8'hFF;;
+					    res2 = opb1;
+					    t.RES = res1 * res2;
+					    save_outputs(t);
+					    reset();
+					end
+
+			    endcase
+
+			end
+		endcase
 	end
 //Logical
 	else begin

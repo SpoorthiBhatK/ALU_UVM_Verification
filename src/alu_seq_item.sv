@@ -21,7 +21,7 @@ constraint cmd_dst{
 	else
         	CMD dist { [0:13] := 1 };
 }
-constraint vld{INP_VALID dist{3:/2, [0:2]:/1};}
+constraint vld{INP_VALID dist{3:=1, 0:=1, 1:=1, 2:=1};}
 
 `uvm_object_utils_begin(alu_seq_item)
 `uvm_field_int(OPA, UVM_ALL_ON | UVM_DEC)
